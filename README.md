@@ -96,6 +96,8 @@ npm run preview:web  # sert dist/ en local pour tester l'installation et le hors
 
 ### Déploiement sur Vercel
 
+En ligne : **https://terralink-tau.vercel.app** (projet Vercel `terralink`). Chaque push sur `main` est déployé automatiquement en production.
+
 1. Projet Vercel relié au dépôt GitHub, **Root Directory : `mobile`** (la commande de build et le dossier de sortie viennent de `vercel.json`).
 2. Variables d'environnement du projet : `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_TERRALINK_WHATSAPP`, `EXPO_PUBLIC_TERRALINK_EMAIL`.
 3. Dans Supabase, **Authentication > URL Configuration** : mettre l'adresse du site en *Site URL* et l'ajouter aux *Redirect URLs*, pour que les liens de confirmation et de mot de passe oublié ouvrent la version web.
