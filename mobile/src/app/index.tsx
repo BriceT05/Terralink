@@ -7,5 +7,6 @@ export default function Index() {
   const { session, profile } = useAuth();
   if (!session) return <Redirect href="/sign-in" />;
   if (profile?.role === 'owner') return <Redirect href="/accueil" />;
+  if (profile?.role === 'admin') return <Redirect href="/fermes" />;
   return <Redirect href="/exploitations" />;
 }

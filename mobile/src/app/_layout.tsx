@@ -68,7 +68,8 @@ function RootNavigator() {
   }
 
   const isOwner = profile?.role === 'owner';
-  const isAgent = profile?.role === 'agent' || profile?.role === 'admin';
+  const isAgent = profile?.role === 'agent';
+  const isAdmin = profile?.role === 'admin';
 
   return (
     <Stack
@@ -96,6 +97,14 @@ function RootNavigator() {
         <Stack.Screen name="(agent)" options={{ headerShown: false }} />
         <Stack.Screen name="farm/[id]" options={{ title: 'Exploitation' }} />
         <Stack.Screen name="visit/[id]" options={{ title: 'Visite de terrain' }} />
+      </Stack.Protected>
+
+      <Stack.Protected guard={Boolean(session) && isAdmin}>
+        <Stack.Screen name="(admin)" options={{ headerShown: false }} />
+        <Stack.Screen name="admin/farm/[id]" options={{ title: 'Exploitation' }} />
+        <Stack.Screen name="admin/farm-form" options={{ title: 'Exploitation', presentation: 'modal' }} />
+        <Stack.Screen name="admin/user/[id]" options={{ title: 'Compte' }} />
+        <Stack.Screen name="admin/request/[id]" options={{ title: 'Demande de diagnostic' }} />
       </Stack.Protected>
 
       <Stack.Protected guard={Boolean(session)}>

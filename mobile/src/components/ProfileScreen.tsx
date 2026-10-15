@@ -3,26 +3,19 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { useAsync } from '@/hooks/useAsync';
-import { listMyDiagnosticRequests } from '@/lib/api';
+import { listDiagnosticRequests } from '@/lib/api';
 import { openWhatsApp, sendEmail, TERRALINK_EMAIL } from '@/lib/contact';
-import { formatDate, requestStatusLabel } from '@/lib/format';
+import { formatDate, requestStatusLabel, roleLabel } from '@/lib/format';
 import { colors, space } from '@/lib/theme';
-import type { UserRole } from '@/lib/types';
 import { useAuth } from '@/providers/AuthProvider';
 
 import { Badge, Body, Button, Card, Divider, Heading, InfoLine, Row, Screen, SectionHeader } from './ui';
-
-const roleLabel: Record<UserRole, string> = {
-  owner: 'Propriétaire',
-  agent: 'Agent de terrain',
-  admin: 'Équipe TerraLink',
-};
 
 export function ProfileScreen() {
   const { session, profile, signOut } = useAuth();
   const [signingOut, setSigningOut] = useState(false);
   const isOwner = profile?.role === 'owner';
-  const requests = useAsync(() => (isOwner ? listMyDiagnosticRequests() : Promise.resolve([])), [isOwner]);
+  const requests = useAsync(() => (isOwner ? listDiagnosticRequests() : Promise.resolve([])), [isOwner]);
 
   if (!profile) return null;
 

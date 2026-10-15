@@ -2,9 +2,11 @@ import * as Crypto from 'expo-crypto';
 
 import { PHOTO_BUCKET, supabase } from './supabase';
 import type {
+  AdminUser,
   Alert,
   DiagnosticRequest,
   Farm,
+  FarmAgent,
   FarmType,
   Level,
   Observation,
@@ -13,6 +15,8 @@ import type {
   Profile,
   Recommendation,
   RecoStatus,
+  RequestStatus,
+  UserRole,
   Visit,
   VisitReport,
   VisitWithAgent,
@@ -319,6 +323,51 @@ export async function createDiagnosticRequest(input: DiagnosticInput): Promise<v
   check(await supabase.from('diagnostic_requests').insert(input));
 }
 
-export async function listMyDiagnosticRequests(): Promise<DiagnosticRequest[]> {
+// Ses propres demandes pour un propriétaire, toutes les demandes pour l'équipe TerraLink (RLS).
+export async function listDiagnosticRequests(): Promise<DiagnosticRequest[]> {
   return check(await supabase.from('diagnostic_requests').select('*').order('created_at', { ascending: false }));
+}
+
+// ---------------------------------------------------------------------------
+// Administration (équipe TerraLink)
+// ---------------------------------------------------------------------------
+export async function listUsers(): Promise<AdminUser[]> {
+  return check(await supabase.rpc('admin_list_users'));
+}
+
+export async function setUserRole(userId: string, role: UserRole): Promise<void> {
+  check(await supabase.rpc('admin_set_role', { target: userId, new_role: role }));
+}
+
+export type FarmInput = Pick<
+  Farm,
+  'owner_id' | 'name' | 'type' | 'region' | 'locality' | 'area_ha' | 'description' | 'manager_name' | 'manager_phone' | 'latitude' | 'longitude'
+>;
+
+export async function createFarm(input: FarmInput): Promise<Farm> {
+  return check(await supabase.from('farms').insert(input).select().single());
+}
+
+export async function updateFarm(id: string, input: FarmInput): Promise<void> {
+  check(await supabase.from('farms').update(input).eq('id', id));
+}
+
+export async function listAssignments(): Promise<FarmAgent[]> {
+  return check(await supabase.from('farm_agents').select('*'));
+}
+
+export async function assignAgent(farmId: string, agentId: string): Promise<void> {
+  check(await supabase.from('farm_agents').insert({ farm_id: farmId, agent_id: agentId }));
+}
+
+export async function unassignAgent(farmId: string, agentId: string): Promise<void> {
+  check(await supabase.from('farm_agents').delete().eq('farm_id', farmId).eq('agent_id', agentId));
+}
+
+export async function getDiagnosticRequest(id: string): Promise<DiagnosticRequest> {
+  return check(await supabase.from('diagnostic_requests').select('*').eq('id', id).single());
+}
+
+export async function setRequestStatus(id: string, status: RequestStatus): Promise<void> {
+  check(await supabase.from('diagnostic_requests').update({ status }).eq('id', id));
 }

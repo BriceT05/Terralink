@@ -1,9 +1,9 @@
 // Teste la migration TerraLink + les règles RLS sur un Postgres PGlite, avec un stub minimal de Supabase.
 import { PGlite } from '@electric-sql/pglite';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 
 const here = new URL('.', import.meta.url);
-const migrationPath = new URL('../migrations/20261014000000_init.sql', here);
+const migrationsDir = new URL('../migrations/', here);
 const seedPath = new URL('../seed_demo.sql', here);
 const db = new PGlite();
 
@@ -27,7 +27,9 @@ await db.exec(`
   alter default privileges in schema public grant all on functions to anon, authenticated;
 `);
 
-await db.exec(readFileSync(migrationPath, 'utf8'));
+for (const file of readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort()) {
+  await db.exec(readFileSync(new URL(file, migrationsDir), 'utf8'));
+}
 
 const ids = {};
 for (const email of ['owner@t.sn', 'agent@t.sn', 'stranger@t.sn']) {
@@ -147,6 +149,33 @@ check('demande invisible des autres', (await count('owner', 'diagnostic_requests
 const spoof = await as('stranger', `insert into public.diagnostic_requests (user_id, full_name, email, phone, country, city, farm_location, farm_type, need)
   values ($1, 'A', 'a', '1', 'F', 'P', 'T', 'agriculture', 'S')`, [ids.owner]);
 check('impossible de déposer au nom d’un autre', Boolean(spoof.error));
+
+// Administration (équipe TerraLink)
+ids.admin = (await db.query(`insert into auth.users (email) values ('admin@t.sn') returning id`)).rows[0].id;
+await db.query(`update public.profiles set role = 'admin' where id = $1`, [ids.admin]);
+
+const users = await as('admin', `select * from public.admin_list_users()`);
+check('admin liste les comptes avec leur e-mail', users.rows.length === 4 && users.rows.some((u) => u.email === 'owner@t.sn'), users.error ?? '');
+check('agent ne liste pas les comptes', Boolean((await as('agent', `select * from public.admin_list_users()`)).error));
+check('propriétaire ne change pas un rôle', Boolean((await as('owner', `select public.admin_set_role($1, 'admin')`, [ids.owner])).error));
+check('admin ne retire pas son propre accès', Boolean((await as('admin', `select public.admin_set_role($1, 'owner')`, [ids.admin])).error));
+
+const newFarm = await as('admin', `insert into public.farms (owner_id, name, type, region) values ($1, 'Ferme admin', 'agriculture', 'Louga') returning id`, [ids.stranger]);
+check('admin crée une exploitation', Boolean(newFarm.rows[0]), newFarm.error ?? '');
+const newFarmId = newFarm.rows[0]?.id;
+check('pas d’assignation d’un compte non agent', Boolean((await as('admin', `insert into public.farm_agents values ($1, $2)`, [newFarmId, ids.owner])).error));
+
+const promote = await as('admin', `select public.admin_set_role($1, 'agent')`, [ids.stranger]);
+check('admin nomme un agent', !promote.error, promote.error ?? '');
+const assign = await as('admin', `insert into public.farm_agents values ($1, $2)`, [newFarmId, ids.stranger]);
+check('admin assigne un agent', !assign.error, assign.error ?? '');
+check('le nouvel agent voit l’exploitation assignée', (await as('stranger', `select id from public.farms where id = $1`, [newFarmId])).rows.length === 1);
+
+await as('admin', `select public.admin_set_role($1, 'owner')`, [ids.stranger]);
+check('un agent rétrogradé perd ses assignations', (await db.query(`select 1 from public.farm_agents where agent_id = $1`, [ids.stranger])).rows.length === 0);
+
+const triage = await as('admin', `update public.diagnostic_requests set status = 'contacted' returning id`);
+check('admin traite une demande de diagnostic', triage.rows.length === 1, triage.error ?? '');
 
 console.log(failures === 0 ? '\nTous les tests passent.' : `\n${failures} échec(s).`);
 process.exit(failures === 0 ? 0 : 1);

@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { ScrollView, Text, View } from 'react-native';
 
-import { daysAgo, formatDate, formatShortDate, overallLabel, recoStatusLabel } from '@/lib/format';
+import { daysAgo, formatDate, formatShortDate, overallLabel, recoStatusLabel, requestStatusLabel, roleLabel } from '@/lib/format';
 import { colors, fonts, radius, space, type } from '@/lib/theme';
-import type { Alert, Farm, Recommendation, RecoStatus, VisitWithAgent } from '@/lib/types';
+import type { Alert, Farm, Recommendation, RecoStatus, RequestStatus, UserRole, VisitWithAgent } from '@/lib/types';
 
 import { Badge, Body, Card, ChoiceGroup, Heading, LevelBadge, levelColor, Row } from './ui';
 
@@ -83,6 +83,27 @@ export function RecommendationCard({ reco, onPress, footer }: { reco: Recommenda
       {footer}
     </Card>
   );
+}
+
+const roleTone: Record<UserRole, { bg: string; fg: string }> = {
+  owner: { bg: colors.sand2, fg: colors.charcoal },
+  agent: { bg: colors.greenTint, fg: colors.greenDark },
+  admin: { bg: colors.terracottaTint, fg: colors.terracottaDark },
+};
+
+export function RoleBadge({ role }: { role: UserRole }) {
+  return <Badge label={roleLabel[role]} bg={roleTone[role].bg} fg={roleTone[role].fg} />;
+}
+
+const requestStatusTone: Record<RequestStatus, { bg: string; fg: string }> = {
+  new: { bg: colors.terracottaTint, fg: colors.terracottaDark },
+  contacted: { bg: colors.greenTint, fg: colors.greenDark },
+  converted: { bg: colors.green, fg: colors.white },
+  closed: { bg: colors.sand2, fg: colors.muted },
+};
+
+export function RequestStatusBadge({ status }: { status: RequestStatus }) {
+  return <Badge label={requestStatusLabel[status]} bg={requestStatusTone[status].bg} fg={requestStatusTone[status].fg} />;
 }
 
 export function FarmSwitcher({ farms, selectedId, onSelect }: { farms: Farm[]; selectedId: string | undefined; onSelect: (id: string) => void }) {

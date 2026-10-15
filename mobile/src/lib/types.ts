@@ -112,6 +112,14 @@ export type DiagnosticRequest = {
   created_at: string;
 };
 
+export type FarmAgent = {
+  farm_id: string;
+  agent_id: string;
+};
+
+// Compte vu par l'équipe TerraLink (fonction admin_list_users).
+export type AdminUser = Profile & { email: string };
+
 export type PhotoWithUrl = Photo & { url: string | null };
 
 export type VisitWithAgent = Visit & { agent: Pick<Profile, 'full_name'> | null };

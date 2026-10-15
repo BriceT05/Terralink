@@ -1,4 +1,4 @@
-import type { FarmType, Level, RecoStatus, RequestStatus } from './types';
+import type { FarmType, Level, RecoStatus, RequestStatus, UserRole } from './types';
 
 export function formatDate(iso: string | null | undefined, withTime = false): string {
   if (!iso) return '—';
@@ -27,6 +27,12 @@ export function formatCoords(lat: number | null, lng: number | null): string | n
   if (lat == null || lng == null) return null;
   return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
+
+export const roleLabel: Record<UserRole, string> = {
+  owner: 'Propriétaire',
+  agent: 'Agent de terrain',
+  admin: 'Équipe TerraLink',
+};
 
 export const farmTypeLabel: Record<FarmType, string> = {
   agriculture: 'Agriculture',

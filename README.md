@@ -12,7 +12,7 @@ Application mobile de suivi d'exploitations agricoles et d'élevage au Sénégal
 | --- | --- |
 | **Propriétaire** (`owner`) | Consulte ses exploitations : rapports publiés, photos datées et géolocalisées, alertes, recommandations (accepter, refuser, commenter). Peut demander un diagnostic. Rôle attribué à toute nouvelle inscription. |
 | **Agent de terrain** (`agent`) | Voit les exploitations qui lui sont assignées, saisit les visites (synthèse, observations, photos, alertes, recommandations), puis publie le rapport, qui n'est alors plus modifiable. |
-| **Équipe TerraLink** (`admin`) | Voit tout, crée les exploitations et assigne les agents (pour l'instant depuis le tableau de bord Supabase). |
+| **Équipe TerraLink** (`admin`) | Depuis son espace dans l'app : gère les comptes et leurs rôles, crée et modifie les exploitations, assigne les agents et traite les demandes de diagnostic. |
 
 Un propriétaire ne voit jamais les brouillons : les alertes et recommandations d'une visite lui deviennent visibles au moment de la publication.
 
@@ -21,7 +21,9 @@ Un propriétaire ne voit jamais les brouillons : les alertes et recommandations 
 ### 1. Supabase
 
 1. Créez un projet sur [supabase.com](https://supabase.com).
-2. Dans **SQL Editor**, exécutez `supabase/migrations/20261014000000_init.sql`. Ce script crée les tables, les règles d'accès et le bucket privé `visit-photos`.
+2. Dans **SQL Editor**, exécutez dans l'ordre les fichiers de `supabase/migrations/` :
+   - `20261014000000_init.sql` crée les tables, les règles d'accès et le bucket privé `visit-photos` ;
+   - `20261015000000_admin.sql` ajoute les fonctions de l'espace « Équipe TerraLink » (liste des comptes, changement de rôle).
    - Avec la CLI Supabase, les commandes `supabase init`, `supabase link --project-ref <ref>` puis `supabase db push` font la même chose. N'utilisez qu'une des deux méthodes : si le script a déjà été exécuté dans le SQL Editor, `db push` échouera.
 3. Dans **Authentication > Providers > Email**, laissez la confirmation d'e-mail activée en production.
 
@@ -43,18 +45,18 @@ Ouvrez ensuite l'app dans **Expo Go** (QR code), un émulateur Android ou un sim
 
 Le script fait de l'agent un `agent`, crée une exploitation pour le propriétaire et y assigne l'agent. Il ajoute aussi un rapport publié, avec observations, alerte et recommandation.
 
-### Opérations courantes (SQL Editor)
+### 4. Premier compte « Équipe TerraLink »
+
+Les rôles se gèrent ensuite depuis l'app, mais le tout premier compte admin se crée une fois dans le SQL Editor :
 
 ```sql
--- Donner le rôle agent ou admin
-update public.profiles set role = 'agent' where id = (select id from auth.users where email = 'agent@exemple.com');
-
--- Assigner un agent à une exploitation
-insert into public.farm_agents (farm_id, agent_id) values ('<farm_id>', '<agent_id>');
-
--- Demandes de diagnostic reçues
-select * from public.diagnostic_requests order by created_at desc;
+update public.profiles set role = 'admin'
+where id = (select id from auth.users where email = 'vous@exemple.com');
 ```
+
+Déconnectez-vous puis reconnectez-vous : l'app ouvre l'espace admin (onglets Exploitations, Comptes, Demandes).
+
+Un nouvel agent s'inscrit comme tout le monde, puis un admin le passe en « Agent de terrain » depuis l'onglet **Comptes** et l'assigne depuis la fiche d'une exploitation.
 
 ## Tests des règles d'accès
 
@@ -64,7 +66,7 @@ npm install
 npm test
 ```
 
-Ces tests exécutent la migration et les données de démonstration sur un Postgres embarqué (PGlite), avec une simulation minimale de Supabase. Ils vérifient ensuite 38 règles : cloisonnement entre propriétaires, brouillons invisibles, rapports verrouillés après publication, accès aux photos, etc. Relancez-les après chaque modification du schéma.
+Ces tests exécutent les migrations et les données de démonstration sur un Postgres embarqué (PGlite), avec une simulation minimale de Supabase. Ils vérifient ensuite 49 règles : cloisonnement entre propriétaires, brouillons invisibles, rapports verrouillés après publication, accès aux photos, droits de l'équipe TerraLink, etc. Relancez-les après chaque modification du schéma.
 
 ## Vérifications côté app
 
@@ -78,6 +80,5 @@ npx expo-doctor
 
 - Mode hors connexion pour les agents : la saisie demande actuellement du réseau.
 - Notifications push (nouveau rapport, alerte urgente).
-- Interface d'administration dans l'app (création des exploitations, assignation des agents).
 - Version anglaise.
 - Logo en SVG et icônes d'app définitives : la charte les indique « à produire ». L'app utilise le PNG du symbole extrait de la charte.
