@@ -24,7 +24,12 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "permissions": ["CAMERA", "ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"],
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -49,7 +54,8 @@
         "expo-image-picker",
         {
           "cameraPermission": "TerraLink utilise l'appareil photo pour documenter les visites de terrain.",
-          "photosPermission": "TerraLink accède à vos photos pour les joindre à un rapport de visite."
+          "photosPermission": "TerraLink accède à vos photos pour les joindre à un rapport de visite.",
+          "microphonePermission": false
         }
       ],
       [
@@ -61,6 +67,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "215394b9-1f5b-4484-a012-aa67b3497da7"
+      }
+    },
+    "owner": "bricet05"
   }
 }
