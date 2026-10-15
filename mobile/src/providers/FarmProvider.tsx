@@ -18,6 +18,17 @@ type FarmContextValue = {
 
 const FarmContext = createContext<FarmContextValue | null>(null);
 
+type FarmsLoad = { list: Farm[]; stored: string | null } | { error: string };
+
+async function fetchFarms(): Promise<FarmsLoad> {
+  try {
+    const [list, stored] = await Promise.all([listFarms(), AsyncStorage.getItem(STORAGE_KEY).catch(() => null)]);
+    return { list, stored };
+  } catch (e) {
+    return { error: errorMessage(e) };
+  }
+}
+
 // Exploitation sélectionnée par le propriétaire (il peut en suivre plusieurs).
 export function FarmProvider({ children }: { children: ReactNode }) {
   const [farms, setFarms] = useState<Farm[]>([]);
@@ -25,25 +36,35 @@ export function FarmProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
-    setError(null);
-    try {
-      const [list, stored] = await Promise.all([listFarms(), AsyncStorage.getItem(STORAGE_KEY).catch(() => null)]);
+  const apply = useCallback((result: FarmsLoad) => {
+    if ('error' in result) {
+      setError(result.error);
+    } else {
+      const { list, stored } = result;
       setFarms(list);
       setSelectedId((current) => {
         const wanted = current ?? stored;
         return list.some((f) => f.id === wanted) ? wanted : (list[0]?.id ?? null);
       });
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setLoading(false);
+      setError(null);
     }
+    setLoading(false);
   }, []);
 
+  const reload = useCallback(async () => {
+    setError(null);
+    apply(await fetchFarms());
+  }, [apply]);
+
   useEffect(() => {
-    reload();
-  }, [reload]);
+    let active = true;
+    fetchFarms().then((result) => {
+      if (active) apply(result);
+    });
+    return () => {
+      active = false;
+    };
+  }, [apply]);
 
   const value = useMemo<FarmContextValue>(
     () => ({

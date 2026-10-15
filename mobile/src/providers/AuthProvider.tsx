@@ -16,12 +16,20 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+type ProfileLoad = { userId: string; profile: Profile | null; error: boolean };
+
+function fetchProfile(userId: string): Promise<ProfileLoad> {
+  return getProfile(userId).then(
+    (profile) => ({ userId, profile, error: false }),
+    () => ({ userId, profile: null, error: true }),
+  );
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [profileError, setProfileError] = useState(false);
+  // Dernier chargement du profil, rattaché à l'utilisateur concerné : un changement de compte l'invalide.
+  const [loaded, setLoaded] = useState<ProfileLoad | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -34,39 +42,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const userId = session?.user.id;
 
-  const loadProfile = useCallback(async () => {
-    if (!userId) {
-      setProfile(null);
-      return;
-    }
-    setProfileLoading(true);
-    setProfileError(false);
-    try {
-      setProfile(await getProfile(userId));
-    } catch {
-      setProfileError(true);
-    } finally {
-      setProfileLoading(false);
-    }
+  useEffect(() => {
+    if (!userId) return;
+    let active = true;
+    fetchProfile(userId).then((result) => {
+      if (active) setLoaded(result);
+    });
+    return () => {
+      active = false;
+    };
   }, [userId]);
 
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+  const refreshProfile = useCallback(async () => {
+    if (!userId) return;
+    setLoaded((prev) => (prev?.userId === userId ? { ...prev, error: false } : prev));
+    const result = await fetchProfile(userId);
+    // En cas d'échec, on garde le profil déjà affiché.
+    setLoaded((prev) => (result.error && prev?.userId === userId ? { ...prev, error: true } : result));
+  }, [userId]);
+
+  const current = userId && loaded?.userId === userId ? loaded : null;
+  const profile = current?.profile ?? null;
+  const profileError = current?.error ?? false;
 
   const value = useMemo<AuthContextValue>(
     () => ({
       session,
       profile,
-      initializing: !sessionLoaded || (Boolean(userId) && !profile && profileLoading),
+      initializing: !sessionLoaded || (Boolean(userId) && !current),
       profileError,
-      refreshProfile: loadProfile,
+      refreshProfile,
       signOut: async () => {
         await supabase.auth.signOut();
-        setProfile(null);
+        setLoaded(null);
       },
     }),
-    [session, profile, sessionLoaded, userId, profileLoading, profileError, loadProfile],
+    [session, profile, sessionLoaded, userId, current, profileError, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

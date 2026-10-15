@@ -22,7 +22,7 @@ Un propriétaire ne voit jamais les brouillons : les alertes et recommandations 
 
 1. Créez un projet sur [supabase.com](https://supabase.com).
 2. Dans **SQL Editor**, exécutez `supabase/migrations/20261014000000_init.sql`. Ce script crée les tables, les règles d'accès et le bucket privé `visit-photos`.
-   - Avec la CLI Supabase, la commande `supabase link` puis `supabase db push` fait la même chose.
+   - Avec la CLI Supabase, les commandes `supabase init`, `supabase link --project-ref <ref>` puis `supabase db push` font la même chose. N'utilisez qu'une des deux méthodes : si le script a déjà été exécuté dans le SQL Editor, `db push` échouera.
 3. Dans **Authentication > Providers > Email**, laissez la confirmation d'e-mail activée en production.
 
 ### 2. Application mobile

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, View } from 'react-native';
 
 import { PhotoGrid } from '@/components/PhotoGrid';
@@ -58,17 +58,9 @@ export default function VisitEditorScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  // Synthèse
-  const [summary, setSummary] = useState('');
-  const [overall, setOverall] = useState<Level>('normal');
-  const [summaryDirty, setSummaryDirty] = useState(false);
-
-  useEffect(() => {
-    if (visit.data && !summaryDirty) {
-      setSummary(visit.data.summary);
-      setOverall(visit.data.overall_status);
-    }
-  }, [visit.data, summaryDirty]);
+  // Synthèse : tant qu'elle n'est pas modifiée, on affiche la version enregistrée.
+  const [draft, setDraft] = useState<{ summary: string; overall: Level } | null>(null);
+  const summaryDirty = draft !== null;
 
   if (visit.loading) return <Loading />;
   if (visit.error || !visit.data) {
@@ -81,6 +73,8 @@ export default function VisitEditorScreen() {
   if (visit.data.status === 'published') return <Redirect href={{ pathname: '/report/[id]', params: { id } }} />;
 
   const v = visit.data;
+  const summary = draft?.summary ?? v.summary;
+  const overall = draft?.overall ?? v.overall_status;
 
   async function run(key: string, action: () => Promise<void>) {
     setBusy(key);
@@ -99,7 +93,7 @@ export default function VisitEditorScreen() {
 
   async function saveSummary() {
     const ok = await run('summary', () => updateVisit(v.id, { summary: summary.trim(), overall_status: overall }));
-    if (ok) setSummaryDirty(false);
+    if (ok) setDraft(null);
   }
 
   async function addPhoto(source: 'camera' | 'library') {
@@ -174,20 +168,14 @@ export default function VisitEditorScreen() {
           <ChoiceGroup
             label="État général de l’exploitation"
             value={overall}
-            onChange={(value) => {
-              setOverall(value);
-              setSummaryDirty(true);
-            }}
+            onChange={(value) => setDraft({ summary, overall: value })}
             options={levels.map((l) => ({ value: l, label: overallLabel[l] }))}
           />
           <TextField
             label="Synthèse pour le propriétaire"
             hint="Langage simple : ce qui a été vu, ce qui va bien, ce qui demande attention."
             value={summary}
-            onChangeText={(text) => {
-              setSummary(text);
-              setSummaryDirty(true);
-            }}
+            onChangeText={(text) => setDraft({ summary: text, overall })}
             multiline
           />
           <Button
