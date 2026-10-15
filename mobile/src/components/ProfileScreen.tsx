@@ -5,9 +5,11 @@ import { View } from 'react-native';
 import { useAsync } from '@/hooks/useAsync';
 import { listDiagnosticRequests } from '@/lib/api';
 import { openWhatsApp, sendEmail, TERRALINK_EMAIL } from '@/lib/contact';
+import { confirm } from '@/lib/device';
 import { formatDate, requestStatusLabel, roleLabel } from '@/lib/format';
 import { colors, space } from '@/lib/theme';
 import { useAuth } from '@/providers/AuthProvider';
+import { useOfflineState } from '@/providers/OfflineProvider';
 
 import { Badge, Body, Button, Card, Divider, Heading, InfoLine, Row, Screen, SectionHeader } from './ui';
 
@@ -16,6 +18,7 @@ export function ProfileScreen() {
   const [signingOut, setSigningOut] = useState(false);
   const isOwner = profile?.role === 'owner';
   const requests = useAsync(() => (isOwner ? listDiagnosticRequests() : Promise.resolve([])), [isOwner]);
+  const pendingCount = useOfflineState().ops.length;
 
   if (!profile) return null;
 
@@ -82,6 +85,14 @@ export function ProfileScreen() {
         icon="log-out-outline"
         loading={signingOut}
         onPress={async () => {
+          if (pendingCount > 0) {
+            const ok = await confirm(
+              'Saisies non envoyées',
+              `${pendingCount} modification(s) n’ont pas encore été envoyées. Elles restent sur ce téléphone et partiront quand vous vous reconnecterez avec ce compte.`,
+              'Se déconnecter',
+            );
+            if (!ok) return;
+          }
           setSigningOut(true);
           await signOut();
         }}

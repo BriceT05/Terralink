@@ -1,7 +1,9 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { getProfile } from '@/lib/api';
+import { isNetworkError } from '@/lib/offline';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
 
@@ -18,11 +20,18 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 type ProfileLoad = { userId: string; profile: Profile | null; error: boolean };
 
-function fetchProfile(userId: string): Promise<ProfileLoad> {
-  return getProfile(userId).then(
-    (profile) => ({ userId, profile, error: false }),
-    () => ({ userId, profile: null, error: true }),
-  );
+const profileCacheKey = (userId: string) => `terralink.profile.${userId}`;
+
+// Sans réseau, on repart du dernier profil connu pour que l'app reste utilisable sur le terrain.
+async function fetchProfile(userId: string): Promise<ProfileLoad> {
+  try {
+    const profile = await getProfile(userId);
+    AsyncStorage.setItem(profileCacheKey(userId), JSON.stringify(profile)).catch(() => {});
+    return { userId, profile, error: false };
+  } catch (e) {
+    const cached = isNetworkError(e) ? await AsyncStorage.getItem(profileCacheKey(userId)).catch(() => null) : null;
+    return cached ? { userId, profile: JSON.parse(cached) as Profile, error: false } : { userId, profile: null, error: true };
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

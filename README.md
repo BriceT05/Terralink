@@ -76,9 +76,18 @@ npx tsc --noEmit
 npx expo-doctor
 ```
 
+## Saisie hors connexion (agents)
+
+Un agent peut démarrer et remplir une visite sans réseau : synthèse, observations, photos, alertes et recommandations sont enregistrées sur le téléphone (`mobile/src/lib/offline.ts`), puis envoyées automatiquement au retour du réseau (`mobile/src/lib/sync.ts`).
+
+- Les exploitations et visites déjà consultées restent lisibles hors connexion (dernière version connue).
+- Les identifiants sont générés sur le téléphone : une opération interrompue peut être renvoyée sans créer de doublon.
+- La publication demande une connexion, et n'a lieu qu'une fois toutes les saisies de la visite envoyées.
+- Si le serveur refuse une opération, l'envoi s'arrête et l'agent peut réessayer ou abandonner cette opération.
+- Les saisies non envoyées sont rattachées au compte : elles partent à la prochaine connexion de cet agent sur ce téléphone.
+
 ## Hors périmètre de cette première version
 
-- Mode hors connexion pour les agents : la saisie demande actuellement du réseau.
 - Notifications push (nouveau rapport, alerte urgente).
 - Version anglaise.
 - Logo en SVG et icônes d'app définitives : la charte les indique « à produire ». L'app utilise le PNG du symbole extrait de la charte.

@@ -95,6 +95,22 @@ check('propriétaire ne voit pas le brouillon', (await count('owner', 'visits'))
 check('propriétaire ne voit pas l’alerte du brouillon', (await count('owner', 'alerts')) === 1);
 check('inconnu ne peut pas créer de visite', Boolean((await as('stranger', `insert into public.visits (farm_id, agent_id) values ($1, $2)`, [farmId, ids.stranger])).error));
 
+// Envoi hors connexion : identifiants générés sur le téléphone, opérations rejouées sans doublon
+const offlineVisitId = crypto.randomUUID();
+const offlineObsId = crypto.randomUUID();
+const replay = async () => {
+  const visit = await as('agent', `insert into public.visits (id, farm_id, agent_id) values ($1, $2, $3) on conflict (id) do nothing`, [offlineVisitId, farmId, ids.agent]);
+  const obs = await as('agent', `insert into public.observations (id, visit_id, category, content) values ($1, $2, 'Cultures', 'RAS') on conflict (id) do nothing`, [offlineObsId, offlineVisitId]);
+  return visit.error ?? obs.error;
+};
+const firstSend = await replay();
+check('agent envoie une visite créée hors connexion', !firstSend, firstSend ?? '');
+const secondSend = await replay();
+check('renvoi de la même visite sans erreur ni doublon', !secondSend && (await db.query(`select 1 from public.observations where id = $1`, [offlineObsId])).rows.length === 1, secondSend ?? '');
+const foreignReplay = await as('stranger', `insert into public.observations (id, visit_id, category, content) values ($1, $2, 'X', 'Y') on conflict (id) do nothing`, [crypto.randomUUID(), offlineVisitId]);
+check('inconnu ne peut pas rejouer sur la visite d’un agent', Boolean(foreignReplay.error));
+await db.query(`delete from public.visits where id = $1`, [offlineVisitId]);
+
 // Rapport publié verrouillé
 const lockedUpdate = await as('agent', `update public.visits set summary = 'modifié' where id = $1 returning id`, [publishedId]);
 check('rapport publié non modifiable', lockedUpdate.rows.length === 0);

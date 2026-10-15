@@ -1,5 +1,3 @@
-import * as Crypto from 'expo-crypto';
-
 import { PHOTO_BUCKET, supabase } from './supabase';
 import type {
   AdminUser,
@@ -8,8 +6,6 @@ import type {
   Farm,
   FarmAgent,
   FarmType,
-  Level,
-  Observation,
   Photo,
   PhotoWithUrl,
   Profile,
@@ -158,7 +154,7 @@ export async function respondToRecommendation(id: string, status: RecoStatus, co
 }
 
 // ---------------------------------------------------------------------------
-// Agent : saisie des visites
+// Agent : visites (la saisie passe par la file hors connexion, voir offline.ts et sync.ts)
 // ---------------------------------------------------------------------------
 export type Coords = { latitude: number; longitude: number } | null;
 
@@ -178,28 +174,7 @@ export async function listFarmVisits(farmId: string): Promise<Visit[]> {
   );
 }
 
-export async function createVisit(farmId: string, agentId: string, coords: Coords): Promise<Visit> {
-  return check(
-    await supabase
-      .from('visits')
-      .insert({ farm_id: farmId, agent_id: agentId, latitude: coords?.latitude, longitude: coords?.longitude })
-      .select()
-      .single(),
-  );
-}
-
-export async function updateVisit(
-  id: string,
-  fields: Partial<Pick<Visit, 'summary' | 'overall_status' | 'visited_at'>>,
-): Promise<void> {
-  check(await supabase.from('visits').update(fields).eq('id', id));
-}
-
-export async function publishVisit(id: string): Promise<void> {
-  check(await supabase.from('visits').update({ status: 'published' }).eq('id', id));
-}
-
-export async function deleteVisit(visit: Pick<Visit, 'id' | 'farm_id'>, photoPaths: string[]): Promise<void> {
+export async function deleteVisit(visit: Pick<Visit, 'id'>, photoPaths: string[]): Promise<void> {
   if (photoPaths.length > 0) {
     const { error } = await supabase.storage.from(PHOTO_BUCKET).remove(photoPaths);
     if (error) throw error;
@@ -207,101 +182,12 @@ export async function deleteVisit(visit: Pick<Visit, 'id' | 'farm_id'>, photoPat
   check(await supabase.from('visits').delete().eq('id', visit.id));
 }
 
-export async function addObservation(visitId: string, category: string, content: string, level: Level): Promise<Observation> {
-  return check(await supabase.from('observations').insert({ visit_id: visitId, category, content, level }).select().single());
-}
-
-export async function deleteObservation(id: string): Promise<void> {
-  check(await supabase.from('observations').delete().eq('id', id));
-}
-
-export async function uploadPhoto(params: {
-  farmId: string;
-  visitId: string;
-  uri: string;
-  mimeType?: string | null;
-  coords: Coords;
-  caption?: string;
-}): Promise<void> {
-  const mimeType = params.mimeType ?? 'image/jpeg';
-  const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
-  const path = `${params.farmId}/${params.visitId}/${Crypto.randomUUID()}.${extension}`;
-
-  const body = await (await fetch(params.uri)).arrayBuffer();
-  const upload = await supabase.storage.from(PHOTO_BUCKET).upload(path, body, { contentType: mimeType });
-  if (upload.error) throw upload.error;
-
-  const insert = await supabase.from('photos').insert({
-    visit_id: params.visitId,
-    storage_path: path,
-    caption: params.caption || null,
-    latitude: params.coords?.latitude,
-    longitude: params.coords?.longitude,
-    taken_at: new Date().toISOString(),
-  });
-  if (insert.error) {
-    await supabase.storage.from(PHOTO_BUCKET).remove([path]);
-    throw insert.error;
-  }
-}
-
-export async function deletePhoto(photo: Pick<Photo, 'id' | 'storage_path'>): Promise<void> {
-  check(await supabase.from('photos').delete().eq('id', photo.id));
-  await supabase.storage.from(PHOTO_BUCKET).remove([photo.storage_path]);
-}
-
-export async function addAlert(params: {
-  farmId: string;
-  visitId: string | null;
-  title: string;
-  description: string;
-  level: Exclude<Level, 'normal'>;
-}): Promise<void> {
-  check(
-    await supabase.from('alerts').insert({
-      farm_id: params.farmId,
-      visit_id: params.visitId,
-      title: params.title,
-      description: params.description,
-      level: params.level,
-    }),
-  );
-}
-
 export async function setAlertStatus(id: string, status: Alert['status']): Promise<void> {
   check(await supabase.from('alerts').update({ status }).eq('id', id));
 }
 
-export async function deleteAlert(id: string): Promise<void> {
-  check(await supabase.from('alerts').delete().eq('id', id));
-}
-
-export async function addRecommendation(params: {
-  farmId: string;
-  visitId: string | null;
-  title: string;
-  details: string;
-  priority: Level;
-  dueDate: string | null;
-}): Promise<void> {
-  check(
-    await supabase.from('recommendations').insert({
-      farm_id: params.farmId,
-      visit_id: params.visitId,
-      title: params.title,
-      details: params.details,
-      priority: params.priority,
-      due_date: params.dueDate,
-    }),
-  );
-}
-
 export async function setRecommendationStatus(id: string, status: RecoStatus): Promise<void> {
   check(await supabase.from('recommendations').update({ status }).eq('id', id));
-}
-
-export async function deleteRecommendation(id: string): Promise<void> {
-  check(await supabase.from('recommendations').delete().eq('id', id));
 }
 
 // ---------------------------------------------------------------------------

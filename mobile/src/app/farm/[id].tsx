@@ -19,20 +19,29 @@ import {
   SectionHeader,
 } from '@/components/ui';
 import { useAsync } from '@/hooks/useAsync';
-import { createVisit, getFarm, listAlerts, listFarmVisits, listRecommendations, setAlertStatus, setRecommendationStatus } from '@/lib/api';
+import { getFarm, listAlerts, listFarmVisits, listRecommendations, setAlertStatus, setRecommendationStatus } from '@/lib/api';
 import { callPhone, openWhatsApp } from '@/lib/contact';
 import { getCurrentCoords } from '@/lib/device';
 import { errorMessage, farmTypeLabel, formatCoords, formatDate } from '@/lib/format';
+import { cachedQuery, createLocalVisit } from '@/lib/offline';
+import { syncNow } from '@/lib/sync';
 import { colors, space } from '@/lib/theme';
 import { useAuth } from '@/providers/AuthProvider';
+import { useOfflineState } from '@/providers/OfflineProvider';
 
 export default function AgentFarmScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { profile } = useAuth();
-  const data = useAsync(async () => {
-    const [farm, visits, alerts, recos] = await Promise.all([getFarm(id), listFarmVisits(id), listAlerts(id), listRecommendations(id)]);
-    return { farm, visits, alerts, recos };
-  }, [id]);
+  // Dernière version connue gardée sur le téléphone pour pouvoir démarrer une visite sans réseau.
+  const data = useAsync(
+    () =>
+      cachedQuery(`farm.${id}`, async () => {
+        const [farm, visits, alerts, recos] = await Promise.all([getFarm(id), listFarmVisits(id), listAlerts(id), listRecommendations(id)]);
+        return { farm, visits, alerts, recos };
+      }),
+    [id],
+  );
+  const offline = useOfflineState();
   const [starting, setStarting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +55,12 @@ export default function AgentFarmScreen() {
     );
   }
 
-  const { farm, visits, alerts, recos } = data.data;
+  const { farm, visits: serverVisits, alerts, recos } = data.data.value;
+  const fromCache = data.data.fromCache;
+  // Brouillons créés sur ce téléphone et pas encore arrivés sur le serveur.
+  const localDrafts = Object.values(offline.visits).filter((v) => v.farm_id === farm.id && !serverVisits.some((s) => s.id === v.id));
+  const discarded = new Set(offline.ops.filter((op) => op.kind === 'deleteVisit').map((op) => op.visitId));
+  const visits = [...localDrafts, ...serverVisits].filter((v) => !discarded.has(v.id));
   const myDraft = visits.find((v) => v.status === 'draft' && v.agent_id === profile?.id);
   const openAlerts = alerts.filter((a) => a.status === 'open');
   const activeRecos = recos.filter((r) => r.status === 'accepted' || r.status === 'in_progress' || r.status === 'proposed');
@@ -60,8 +74,14 @@ export default function AgentFarmScreen() {
     setStarting(true);
     setError(null);
     try {
-      const visit = await createVisit(farm.id, profile!.id, await getCurrentCoords());
-      router.push({ pathname: '/visit/[id]', params: { id: visit.id } });
+      const visitId = createLocalVisit({
+        farm: { id: farm.id, name: farm.name },
+        agentId: profile!.id,
+        agentName: profile!.full_name,
+        coords: await getCurrentCoords(),
+      });
+      syncNow();
+      router.push({ pathname: '/visit/[id]', params: { id: visitId } });
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -90,6 +110,9 @@ export default function AgentFarmScreen() {
         <Eyebrow>{farmTypeLabel[farm.type]}</Eyebrow>
         <Heading>{farm.name}</Heading>
       </View>
+      {fromCache ? (
+        <Notice tone="info" text="Hors connexion : informations de votre dernière consultation. Vous pouvez quand même saisir une visite." />
+      ) : null}
 
       <Card style={{ gap: space[2] }}>
         <InfoLine icon="location-outline">
@@ -116,7 +139,7 @@ export default function AgentFarmScreen() {
       />
       {!myDraft ? (
         <Body small muted style={{ textAlign: 'center' }}>
-          Votre position est relevée au démarrage pour attester de la présence sur le terrain.
+          Votre position est relevée au démarrage pour attester de la présence sur le terrain. La saisie fonctionne aussi sans réseau.
         </Body>
       ) : null}
 

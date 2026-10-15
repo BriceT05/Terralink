@@ -12,6 +12,7 @@ import { Body, Button, EmptyState, Logo, Screen } from '@/components/ui';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { colors, fonts } from '@/lib/theme';
 import { AuthProvider, useAuth } from '@/providers/AuthProvider';
+import { OfflineProvider } from '@/providers/OfflineProvider';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -31,7 +32,9 @@ export default function RootLayout() {
       <StatusBar style="dark" />
       {isSupabaseConfigured ? (
         <AuthProvider>
-          <RootNavigator />
+          <OfflineProvider>
+            <RootNavigator />
+          </OfflineProvider>
         </AuthProvider>
       ) : (
         <MissingConfig />
