@@ -13,9 +13,15 @@ export const supabase = createClient(url ?? 'https://placeholder.supabase.co', a
     storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    // Sur le web, les liens reçus par e-mail (confirmation, mot de passe oublié) ouvrent une session.
+    detectSessionInUrl: Platform.OS === 'web',
   },
 });
+
+// Page ouverte par les liens envoyés par e-mail : le site lui-même sur le web, sinon l'adresse
+// de la version web (EXPO_PUBLIC_WEB_URL) pour finir l'opération dans le navigateur.
+export const authRedirectUrl: string | undefined =
+  Platform.OS === 'web' ? window.location.origin : process.env.EXPO_PUBLIC_WEB_URL || undefined;
 
 // Le rafraîchissement du jeton ne tourne que lorsque l'app est au premier plan.
 if (Platform.OS !== 'web') {

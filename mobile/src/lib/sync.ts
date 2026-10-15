@@ -1,8 +1,6 @@
 // Rejoue la file d'envoi hors connexion vers Supabase, dans l'ordre, une opération à la fois.
 // Une coupure réseau arrête l'envoi sans erreur : il reprendra au prochain déclenchement.
 // Une erreur du serveur bloque la file et s'affiche à l'agent, qui peut réessayer ou abandonner l'opération.
-import { File } from 'expo-file-system';
-
 import { deleteVisit, getVisitReport } from './api';
 import { errorMessage } from './format';
 import {
@@ -17,6 +15,7 @@ import {
   type LocalVisit,
   type Op,
 } from './offline';
+import { readPhoto } from './photoStore';
 import { PHOTO_BUCKET, supabase } from './supabase';
 import type { VisitReport } from './types';
 
@@ -36,7 +35,7 @@ async function run(op: Op) {
     case 'delete':
       return check(await supabase.from(op.table).delete().eq('id', op.rowId));
     case 'uploadPhoto': {
-      const body = await new File(op.local.uri).arrayBuffer();
+      const body = await readPhoto(op.local.uri);
       const upload = await supabase.storage.from(PHOTO_BUCKET).upload(op.photo.storage_path, body, { contentType: op.local.mimeType });
       // Fichier déjà déposé lors d'un envoi interrompu : on passe à l'enregistrement.
       if (upload.error && !/already exists|duplicate/i.test(upload.error.message)) throw upload.error;

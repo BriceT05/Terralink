@@ -1,10 +1,11 @@
 import { Tabs } from 'expo-router/js-tabs';
 
-import { tabIcon, tabScreenOptions } from '@/components/TabBar';
+import { tabIcon, useTabScreenOptions } from '@/components/TabBar';
 
 export default function AdminLayout() {
+  const screenOptions = useTabScreenOptions();
   return (
-    <Tabs screenOptions={tabScreenOptions}>
+    <Tabs screenOptions={screenOptions}>
       <Tabs.Screen name="fermes" options={{ title: 'Exploitations', tabBarIcon: tabIcon('leaf-outline', 'leaf') }} />
       <Tabs.Screen name="utilisateurs" options={{ title: 'Comptes', tabBarIcon: tabIcon('people-outline', 'people') }} />
       <Tabs.Screen name="demandes" options={{ title: 'Demandes', tabBarIcon: tabIcon('mail-outline', 'mail') }} />

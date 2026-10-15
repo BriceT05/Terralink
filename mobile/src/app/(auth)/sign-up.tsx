@@ -4,7 +4,7 @@ import { KeyboardAvoidingView, Platform, View } from 'react-native';
 
 import { Body, Button, Card, Heading, IconButton, Logo, Notice, Row, Screen, TextField } from '@/components/ui';
 import { errorMessage } from '@/lib/format';
-import { supabase } from '@/lib/supabase';
+import { authRedirectUrl, supabase } from '@/lib/supabase';
 import { space } from '@/lib/theme';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -32,7 +32,7 @@ export default function SignUpScreen() {
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
-      options: { data: { full_name: fullName.trim(), phone: phone.trim() || null } },
+      options: { data: { full_name: fullName.trim(), phone: phone.trim() || null }, emailRedirectTo: authRedirectUrl },
     });
     setLoading(false);
     if (error) setError(errorMessage(error));

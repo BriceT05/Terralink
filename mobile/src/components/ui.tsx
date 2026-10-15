@@ -389,7 +389,8 @@ export function InfoLine({ icon, children }: { icon: IconName; children: ReactNo
 
 export const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.sand },
-  screenContent: { padding: 20, paddingBottom: space[7], gap: space[4] },
+  // Largeur de lecture limitée et centrée sur tablette et ordinateur ; sans effet sur téléphone.
+  screenContent: { padding: 20, paddingBottom: space[7], gap: space[4], width: '100%', maxWidth: 760, alignSelf: 'center' },
   card: {
     backgroundColor: colors.white,
     borderRadius: radius.m,

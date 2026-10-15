@@ -1,12 +1,13 @@
 import { Tabs } from 'expo-router/js-tabs';
 
-import { tabIcon, tabScreenOptions } from '@/components/TabBar';
+import { tabIcon, useTabScreenOptions } from '@/components/TabBar';
 import { FarmProvider } from '@/providers/FarmProvider';
 
 export default function OwnerLayout() {
+  const screenOptions = useTabScreenOptions();
   return (
     <FarmProvider>
-      <Tabs screenOptions={tabScreenOptions}>
+      <Tabs screenOptions={screenOptions}>
         <Tabs.Screen name="accueil" options={{ title: 'Accueil', tabBarIcon: tabIcon('home-outline', 'home') }} />
         <Tabs.Screen name="rapports" options={{ title: 'Rapports', tabBarIcon: tabIcon('document-text-outline', 'document-text') }} />
         <Tabs.Screen name="alertes" options={{ title: 'Alertes', tabBarIcon: tabIcon('notifications-outline', 'notifications') }} />

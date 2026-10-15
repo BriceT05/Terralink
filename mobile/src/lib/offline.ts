@@ -6,9 +6,9 @@
 // générés sur le téléphone, ce qui rend chaque opération rejouable sans créer de doublon.
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
-import { Directory, File, Paths } from 'expo-file-system';
 
 import type { Coords } from './api';
+import * as photoStore from './photoStore';
 import type { Alert, Level, Observation, PhotoWithUrl, Recommendation, VisitReport } from './types';
 
 export type LocalPhoto = PhotoWithUrl & { local?: { uri: string; mimeType: string } };
@@ -49,6 +49,7 @@ const listeners = new Set<() => void>();
 
 const storageKey = (userId: string) => `terralink.offline.${userId}`;
 const cacheKey = (userId: string, key: string) => `terralink.cache.${userId}.${key}`;
+export const profileCacheKey = (userId: string) => `terralink.profile.${userId}`;
 
 export function getOfflineState() {
   return state;
@@ -81,8 +82,22 @@ export function loadOfflineStore(userId: string | null) {
       if (state.userId !== userId) return;
       const saved = raw ? (JSON.parse(raw) as Pick<OfflineState, 'visits' | 'ops'>) : null;
       setState({ visits: saved?.visits ?? {}, ops: saved?.ops ?? [], ready: true }, false);
+      photoStore.requestPersistentStorage();
+      return refreshPhotoUrls(userId);
     });
   return readyPromise;
+}
+
+// À la déconnexion (appareil ou ordinateur partagé) : efface les données consultées et les brouillons
+// déjà envoyés. Seules les saisies pas encore envoyées restent, pour partir à la prochaine connexion du compte.
+export async function clearPrivateData(userId: string) {
+  const keys = await AsyncStorage.getAllKeys().catch(() => [] as readonly string[]);
+  const privateKeys = keys.filter((k) => k.startsWith(cacheKey(userId, '')) || k === profileCacheKey(userId));
+  await AsyncStorage.multiRemove(privateKeys).catch(() => {});
+  if (state.userId !== userId) return;
+  const pending = new Set(state.ops.map((op) => op.visitId));
+  for (const visitId of Object.keys(state.visits)) if (!pending.has(visitId)) photoStore.deleteVisitPhotos(visitId);
+  setState({ visits: Object.fromEntries(Object.entries(state.visits).filter(([visitId]) => pending.has(visitId))) });
 }
 
 export function whenOfflineReady() {
@@ -119,18 +134,26 @@ export async function cachedQuery<T>(key: string, load: () => Promise<T>): Promi
 // ---------------------------------------------------------------------------
 // Copie locale des visites
 // ---------------------------------------------------------------------------
-function photoDir(visitId: string) {
-  return new Directory(Paths.document, 'terralink-photos', visitId);
-}
-
-// Enregistre la version serveur d'un brouillon, en gardant les photos déjà présentes sur le téléphone.
+// Enregistre la version serveur d'un brouillon, en gardant les photos déjà présentes sur l'appareil.
 export function storeServerVisit(visit: VisitReport) {
   const previous = state.visits[visit.id];
   const photos: LocalPhoto[] = visit.photos.map((p) => {
-    const local = previous?.photos.find((lp) => lp.id === p.id)?.local;
-    return local && new File(local.uri).exists ? { ...p, url: local.uri, local } : p;
+    const kept = previous?.photos.find((lp) => lp.id === p.id);
+    return kept?.local && photoStore.photoExists(kept.local.uri) ? { ...p, url: kept.url, local: kept.local } : p;
   });
   setState({ visits: { ...state.visits, [visit.id]: { ...visit, photos } } });
+}
+
+// Recalcule les adresses d'affichage des photos locales (sur le web, elles ne survivent pas à un rechargement).
+async function refreshPhotoUrls(userId: string) {
+  const entries = Object.values(state.visits).flatMap((v) => v.photos.filter((p) => p.local).map((p) => [v.id, p] as const));
+  if (entries.length === 0) return;
+  const urls = new Map(await Promise.all(entries.map(async ([, p]) => [p.id, await photoStore.displayUri(p.local!.uri)] as const)));
+  if (state.userId !== userId) return;
+  const visits = Object.fromEntries(
+    Object.entries(state.visits).map(([id, v]) => [id, { ...v, photos: v.photos.map((p) => (urls.has(p.id) ? { ...p, url: urls.get(p.id) ?? null } : p)) }]),
+  );
+  setState({ visits }, false);
 }
 
 // Oublie la copie locale (après publication ou suppression) et ses photos.
@@ -139,12 +162,7 @@ export function forgetVisit(visitId: string) {
   const visits = { ...state.visits };
   delete visits[visitId];
   setState({ visits, ops: state.ops.filter((op) => op.visitId !== visitId) });
-  try {
-    const dir = photoDir(visitId);
-    if (dir.exists) dir.delete();
-  } catch {
-    // Fichiers déjà absents.
-  }
+  photoStore.deleteVisitPhotos(visitId);
 }
 
 function mutateVisit(visitId: string, update: (v: LocalVisit) => LocalVisit, op?: OpInput) {
@@ -270,19 +288,17 @@ export function removeRecommendation(visitId: string, id: string) {
   });
 }
 
-// Copie la photo dans le stockage de l'app (le cache de l'appareil photo peut être vidé) avant l'envoi.
+// Garde une copie de la photo sur l'appareil (voir photoStore) jusqu'à son envoi.
 export async function addPhoto(visitId: string, source: { uri: string; mimeType?: string | null }, coords: Coords) {
   const visit = state.visits[visitId];
   const mimeType = source.mimeType ?? 'image/jpeg';
   const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
   const id = Crypto.randomUUID();
 
-  const dir = photoDir(visitId);
-  dir.create({ intermediates: true, idempotent: true });
-  const file = new File(dir, `${id}.${extension}`);
-  await new File(source.uri).copy(file);
+  const uri = await photoStore.savePhoto(visitId, `${id}.${extension}`, source.uri);
+  const url = (await photoStore.displayUri(uri)) ?? uri;
 
-  const local = { uri: file.uri, mimeType };
+  const local = { uri, mimeType };
   const photo = {
     id,
     storage_path: `${visit.farm_id}/${visitId}/${id}.${extension}`,
@@ -292,7 +308,7 @@ export async function addPhoto(visitId: string, source: { uri: string; mimeType?
   };
   mutateVisit(
     visitId,
-    (v) => ({ ...v, photos: [...v.photos, { ...photo, visit_id: visitId, caption: null, created_at: photo.taken_at, url: file.uri, local }] }),
+    (v) => ({ ...v, photos: [...v.photos, { ...photo, visit_id: visitId, caption: null, created_at: photo.taken_at, url, local }] }),
     { kind: 'uploadPhoto', photo, local },
   );
 }
@@ -303,13 +319,7 @@ export function removePhoto(visitId: string, photo: LocalPhoto) {
     rowId: photo.id,
     storagePath: photo.storage_path,
   });
-  if (photo.local) {
-    try {
-      new File(photo.local.uri).delete();
-    } catch {
-      // Déjà supprimée.
-    }
-  }
+  if (photo.local) photoStore.deletePhoto(photo.local.uri);
 }
 
 // Supprime le brouillon. S'il n'a jamais atteint le serveur, rien à envoyer.

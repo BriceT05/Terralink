@@ -4,7 +4,7 @@ import { KeyboardAvoidingView, Platform, Pressable, Text, View } from 'react-nat
 
 import { Body, Button, Card, Eyebrow, Heading, Logo, Notice, Screen, TextField } from '@/components/ui';
 import { errorMessage } from '@/lib/format';
-import { supabase } from '@/lib/supabase';
+import { authRedirectUrl, supabase } from '@/lib/supabase';
 import { colors, fonts, space, type } from '@/lib/theme';
 
 export default function SignInScreen() {
@@ -33,7 +33,7 @@ export default function SignInScreen() {
       setError('Indiquez votre adresse e-mail pour recevoir le lien de réinitialisation.');
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: authRedirectUrl });
     if (error) setError(errorMessage(error));
     else setInfo('Si un compte existe pour cette adresse, un e-mail de réinitialisation vient d’être envoyé.');
   }

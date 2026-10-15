@@ -76,6 +76,31 @@ npx tsc --noEmit
 npx expo-doctor
 ```
 
+## Version web (PWA)
+
+La même base de code produit une application web installable (Expo + react-native-web), hébergée sur Vercel.
+
+```bash
+cd mobile
+npm run web          # développement, http://localhost:8081
+npm run build:web    # build de production dans dist/ + service worker (Workbox)
+npm run preview:web  # sert dist/ en local pour tester l'installation et le hors-connexion
+```
+
+- **Installation** : manifeste `public/manifest.json`, icônes `public/icons/`, page `public/index.html`.
+- **Service worker** (`workbox-config.js`) : met en cache uniquement l'application (code, polices, images). Les appels à Supabase, les sessions et les liens signés des photos ne sont jamais mis en cache. Une nouvelle version s'installe quand l'utilisateur clique sur « Mettre à jour » (`public/register-sw.js`).
+- **Écrans** : centrés à 760 px de large sur tablette et ordinateur ; onglets en barre latérale au-delà de 900 px.
+- **Hors connexion** : comme sur mobile ; les photos en attente sont gardées dans IndexedDB (`src/lib/photoStore.web.ts`).
+- **Données personnelles** : à la déconnexion, les données consultées sont effacées de l'appareil ; seules les saisies non envoyées restent.
+- **Sécurité** : en-têtes définis dans `vercel.json` (Content-Security-Policy, nosniff, Permissions-Policy). HTTPS fourni par Vercel ; la géolocalisation et l'appareil photo l'exigent.
+
+### Déploiement sur Vercel
+
+1. Projet Vercel relié au dépôt GitHub, **Root Directory : `mobile`** (la commande de build et le dossier de sortie viennent de `vercel.json`).
+2. Variables d'environnement du projet : `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_TERRALINK_WHATSAPP`, `EXPO_PUBLIC_TERRALINK_EMAIL`.
+3. Dans Supabase, **Authentication > URL Configuration** : mettre l'adresse du site en *Site URL* et l'ajouter aux *Redirect URLs*, pour que les liens de confirmation et de mot de passe oublié ouvrent la version web.
+4. Pour que l'app mobile envoie aussi ces liens vers la version web, ajouter `EXPO_PUBLIC_WEB_URL` (adresse du site) aux variables EAS et à `.env.local`.
+
 ## Saisie hors connexion (agents)
 
 Un agent peut démarrer et remplir une visite sans réseau : synthèse, observations, photos, alertes et recommandations sont enregistrées sur le téléphone (`mobile/src/lib/offline.ts`), puis envoyées automatiquement au retour du réseau (`mobile/src/lib/sync.ts`).

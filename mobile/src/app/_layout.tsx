@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { NewPasswordScreen } from '@/components/NewPasswordScreen';
 import { Body, Button, EmptyState, Logo, Screen } from '@/components/ui';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { colors, fonts } from '@/lib/theme';
@@ -44,13 +45,15 @@ export default function RootLayout() {
 }
 
 function RootNavigator() {
-  const { session, profile, initializing, profileError, refreshProfile, signOut } = useAuth();
+  const { session, profile, initializing, profileError, refreshProfile, signOut, recoveringPassword } = useAuth();
 
   useEffect(() => {
     if (!initializing) SplashScreen.hideAsync().catch(() => {});
   }, [initializing]);
 
   if (initializing) return <View style={{ flex: 1, backgroundColor: colors.sand }} />;
+
+  if (session && recoveringPassword) return <NewPasswordScreen />;
 
   if (session && !profile) {
     return (

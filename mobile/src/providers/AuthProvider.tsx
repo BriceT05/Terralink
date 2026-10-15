@@ -3,7 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { getProfile } from '@/lib/api';
-import { isNetworkError } from '@/lib/offline';
+import { clearPrivateData, isNetworkError, profileCacheKey } from '@/lib/offline';
 import { supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
 
@@ -14,13 +14,14 @@ type AuthContextValue = {
   profileError: boolean;
   refreshProfile: () => Promise<void>;
   signOut: () => Promise<void>;
+  // Ouvert depuis le lien « mot de passe oublié » : l'utilisateur doit choisir un nouveau mot de passe.
+  recoveringPassword: boolean;
+  endPasswordRecovery: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 type ProfileLoad = { userId: string; profile: Profile | null; error: boolean };
-
-const profileCacheKey = (userId: string) => `terralink.profile.${userId}`;
 
 // Sans réseau, on repart du dernier profil connu pour que l'app reste utilisable sur le terrain.
 async function fetchProfile(userId: string): Promise<ProfileLoad> {
@@ -39,13 +40,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionLoaded, setSessionLoaded] = useState(false);
   // Dernier chargement du profil, rattaché à l'utilisateur concerné : un changement de compte l'invalide.
   const [loaded, setLoaded] = useState<ProfileLoad | null>(null);
+  const [recoveringPassword, setRecoveringPassword] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setSessionLoaded(true);
     });
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+    const { data } = supabase.auth.onAuthStateChange((event, next) => {
+      setSession(next);
+      if (event === 'PASSWORD_RECOVERY') setRecoveringPassword(true);
+    });
     return () => data.subscription.unsubscribe();
   }, []);
 
@@ -82,11 +87,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileError,
       refreshProfile,
       signOut: async () => {
+        if (userId) await clearPrivateData(userId);
         await supabase.auth.signOut();
         setLoaded(null);
+        setRecoveringPassword(false);
       },
+      recoveringPassword,
+      endPasswordRecovery: () => setRecoveringPassword(false),
     }),
-    [session, profile, sessionLoaded, userId, current, profileError, refreshProfile],
+    [session, profile, sessionLoaded, userId, current, profileError, refreshProfile, recoveringPassword],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
