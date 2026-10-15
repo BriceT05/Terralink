@@ -1,0 +1,83 @@
+# TerraLink
+
+Application mobile de suivi d'exploitations agricoles et d'élevage au Sénégal.
+
+- `Info/` : cahier des charges et charte graphique (source des couleurs, typographies et règles d'interface).
+- `mobile/` : application Expo (React Native + TypeScript, Expo Router), Android et iOS.
+- `supabase/` : base de données, règles d'accès (RLS), stockage des photos et données de démonstration.
+
+## Rôles
+
+| Rôle | Ce qu'il fait dans l'app |
+| --- | --- |
+| **Propriétaire** (`owner`) | Consulte ses exploitations : rapports publiés, photos datées et géolocalisées, alertes, recommandations (accepter, refuser, commenter). Peut demander un diagnostic. Rôle attribué à toute nouvelle inscription. |
+| **Agent de terrain** (`agent`) | Voit les exploitations qui lui sont assignées, saisit les visites (synthèse, observations, photos, alertes, recommandations), puis publie le rapport, qui n'est alors plus modifiable. |
+| **Équipe TerraLink** (`admin`) | Voit tout, crée les exploitations et assigne les agents (pour l'instant depuis le tableau de bord Supabase). |
+
+Un propriétaire ne voit jamais les brouillons : les alertes et recommandations d'une visite lui deviennent visibles au moment de la publication.
+
+## Mise en place
+
+### 1. Supabase
+
+1. Créez un projet sur [supabase.com](https://supabase.com).
+2. Dans **SQL Editor**, exécutez `supabase/migrations/20261014000000_init.sql`. Ce script crée les tables, les règles d'accès et le bucket privé `visit-photos`.
+   - Avec la CLI Supabase, la commande `supabase link` puis `supabase db push` fait la même chose.
+3. Dans **Authentication > Providers > Email**, laissez la confirmation d'e-mail activée en production.
+
+### 2. Application mobile
+
+```bash
+cd mobile
+cp .env.example .env.local   # puis renseigner l'URL et la clé "anon" (Project Settings > API)
+npm install
+npx expo start
+```
+
+Ouvrez ensuite l'app dans **Expo Go** (QR code), un émulateur Android ou un simulateur iOS.
+
+### 3. Données de démonstration
+
+1. Créez deux comptes depuis l'app : un pour le propriétaire, un pour l'agent.
+2. Dans `supabase/seed_demo.sql`, remplacez les deux adresses e-mail, puis exécutez le script dans le SQL Editor.
+
+Le script fait de l'agent un `agent`, crée une exploitation pour le propriétaire et y assigne l'agent. Il ajoute aussi un rapport publié, avec observations, alerte et recommandation.
+
+### Opérations courantes (SQL Editor)
+
+```sql
+-- Donner le rôle agent ou admin
+update public.profiles set role = 'agent' where id = (select id from auth.users where email = 'agent@exemple.com');
+
+-- Assigner un agent à une exploitation
+insert into public.farm_agents (farm_id, agent_id) values ('<farm_id>', '<agent_id>');
+
+-- Demandes de diagnostic reçues
+select * from public.diagnostic_requests order by created_at desc;
+```
+
+## Tests des règles d'accès
+
+```bash
+cd supabase/tests
+npm install
+npm test
+```
+
+Ces tests exécutent la migration et les données de démonstration sur un Postgres embarqué (PGlite), avec une simulation minimale de Supabase. Ils vérifient ensuite 38 règles : cloisonnement entre propriétaires, brouillons invisibles, rapports verrouillés après publication, accès aux photos, etc. Relancez-les après chaque modification du schéma.
+
+## Vérifications côté app
+
+```bash
+cd mobile
+npx tsc --noEmit
+npx expo-doctor
+```
+
+## Hors périmètre de cette première version
+
+- Mode hors connexion pour les agents : la saisie demande actuellement du réseau.
+- Notifications push (nouveau rapport, alerte urgente).
+- Interface d'administration dans l'app (création des exploitations, assignation des agents).
+- Version anglaise.
+- Logo en SVG et icônes d'app définitives : la charte les indique « à produire ». L'app utilise le PNG du symbole extrait de la charte.
